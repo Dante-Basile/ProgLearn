@@ -1,8 +1,8 @@
 #%%
 import random
 import tensorflow as tf
-import keras
-from keras import layers
+from tensorflow import keras
+from tensorflow.keras import layers
 from itertools import product
 import pandas as pd
 
@@ -15,8 +15,8 @@ from math import log2, ceil
 from joblib import Parallel, delayed
 from multiprocessing import Pool
 
-from keras.optimizers import Adam
-from keras.callbacks import EarlyStopping
+from tensorflow.keras.optimizers import Adam
+from tensorflow.keras.callbacks import EarlyStopping
 from proglearn.progressive_learner import ProgressiveLearner
 from proglearn.deciders import SimpleArgmaxAverage
 from proglearn.transformers import NeuralClassificationTransformer, TreeClassificationTransformer
@@ -26,6 +26,8 @@ import tensorflow as tf
 
 import time
 import sys
+
+from supcon.losses import ContrastiveLoss
 #%%
 def unpickle(file):
     with open(file, 'rb') as fo:
@@ -93,7 +95,7 @@ def LF_experiment(train_x, train_y, test_x, test_y, ntrees, shift, slot, model, 
             "network": network,
             "euclidean_layer_idx": -2,
             "loss": "categorical_crossentropy",
-            "optimizer": Adam(3e-4),
+            "optimizer": ContrastiveLoss, #Adam(3e-4),
             "fit_kwargs": {
                 "epochs": 100,
                 "callbacks": [EarlyStopping(patience=5, monitor="val_loss")],
@@ -203,7 +205,7 @@ def LF_experiment(train_x, train_y, test_x, test_y, ntrees, shift, slot, model, 
 
     #print(df)
     summary = (df,df_single_task)
-    file_to_save = 'result/result/'+model+str(ntrees)+'_'+str(shift)+'.pickle'
+    file_to_save = 'result/result/'+model+str(ntrees)+'_'+str(shift)+'_supcon'+'.pickle'
     with open(file_to_save, 'wb') as f:
         pickle.dump(summary, f)
 
@@ -258,8 +260,8 @@ def run_parallel_exp(data_x, data_y, n_trees, model, num_points_per_task, slot=0
 
 #%%
 ### MAIN HYPERPARAMS ###
-model = "uf"
-num_points_per_task = 5000
+model = "dnn"
+num_points_per_task = 500 # change from 5000 to 500
 ########################
 
 (X_train, y_train), (X_test, y_test) = keras.datasets.cifar100.load_data()
@@ -282,8 +284,10 @@ if model == "uf":
                 ) for ntree,shift,slot in iterable
                 )
 elif model == "dnn":
-    slot_fold = range(10)
-
+    slot_fold = range(10) #edit this default 10 is correct?
+    
+    '''
+    #parallel
     def perform_shift(shift_slot_tuple):
         shift, slot = shift_slot_tuple
         return run_parallel_exp(data_x, data_y, 0, model, num_points_per_task, slot=slot, shift=shift)
@@ -299,13 +303,15 @@ elif model == "dnn":
     stage_2_iterable = product(stage_2_shifts,slot_fold)
     with Pool(4) as p:
         p.map(perform_shift, stage_2_iterable)
+    '''
 
-'''slot_fold = range(1)
-shift_fold = [1,2,3,4,5,6]
-n_trees=[0]
-iterable = product(n_trees,shift_fold,slot_fold)
+    #sequential
+    #slot_fold = range(1) #this should be 10, comment out
+    shift_fold = [1,2,3,4,5,6]
+    n_trees=[0]
+    iterable = product(n_trees,shift_fold,slot_fold)
 
-for ntree,shift,slot in iterable:
-    run_parallel_exp(
-                data_x, data_y, ntree, model, num_points_per_task, slot=slot, shift=shift
-                )'''
+    for ntree,shift,slot in iterable:
+        run_parallel_exp(
+                    data_x, data_y, ntree, model, num_points_per_task, slot=slot, shift=shift
+                    )
